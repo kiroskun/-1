@@ -14,6 +14,7 @@
             background: linear-gradient(45deg, #fff0f5, #ffe4e1);
             overflow: hidden;
             position: relative;
+            cursor: pointer;
         }
 
         #mainCanvas {
@@ -52,7 +53,7 @@
             position: absolute;
             width: 15px;
             height: 15px;
-            background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAm0lEQVQ4T2NkoBAwUqifgWQA/P39Gf7//89ADLh16xYDWQCMGDGCARXz4MGD/5QAMHLkSIKo////g6RwAqQAGDVqFANM4+PHjxlGjx6NGwBSAYwZM4YBBuD+/fsM48aNww2AagBpRAMwDRg/fjwDqub79+8zTJgwATsAqgGkEQ3ANMA0oGq+e/cuw+TJk7EDoBpAGtEATANMA6rmmzdvMkydOhU7AKoBpBENwDQgAaAAAwBCWU0kQ0v/OgAAAABJRU5ErkJggg==');
+            background: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAm0lEQVQ4T2NkoBAwUqifgWQA/P39Gf7//89ADLh16xYDWQCMGDGCARXz4MGD/5QAMHLkSIKo////g6RwAqQAGDVqFANM4+PHjxlGjx6NGwBSAYwZM4YBBuD+/fsM44cPH/5TAhYtWsQAAHh5lqJIJN9eAAAAAElFTkSuQmCC');
             pointer-events: none;
             animation: fall linear infinite;
         }
@@ -72,7 +73,7 @@
             position: absolute;
             border: 2px solid rgba(255,20,147,0.2);
             border-radius: 50%;
-            animation: pulse 2s ease-out infinite;
+            animation: pulse 1s ease-out infinite;
             pointer-events: none;
         }
 
@@ -87,11 +88,15 @@
     <div class="message">Yan, Happy Valentine's Day</div>
     <div class="signature">
         Love, Kun<br>
-        February 14, 2024
+        February 14, 2025
     </div>
 
     <script>
-        // 花瓣飘落系统
+        let isExploded = false;
+        let pulseInterval = null;
+        let physicsAnimation = null;
+
+        // 花瓣系统
         function createPetals() {
             const petalCount = 15;
             for(let i=0; i<petalCount; i++) {
@@ -105,66 +110,37 @@
         }
         createPetals();
 
-        // 核心画布系统
+        // 画布系统
         const canvas = document.getElementById('mainCanvas');
         const ctx = canvas.getContext('2d');
-        let animationComplete = false;
-
+        
         function resizeCanvas() {
             canvas.width = Math.min(window.innerWidth * 0.8, 600);
             canvas.height = canvas.width;
-            if(animationComplete) redrawHeart();
         }
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
-        // 粒子系统
-        class Particle {
-            constructor(x, y) {
-                this.x = x;
-                this.y = y;
-                this.radius = Math.random() * 2 + 1;
-                this.color = `hsl(${Math.random()*20 + 330}, 85%, 60%)`;
-                this.velocity = {
-                    x: (Math.random() - 0.5) * 0.5,
-                    y: (Math.random() - 0.5) * 0.5
-                };
-            }
-
-            update() {
-                this.x += this.velocity.x;
-                this.y += this.velocity.y;
-                this.radius *= 0.99;
-            }
-
-            draw() {
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
-                ctx.fill();
-            }
-        }
-
-        let particles = [];
-        function createParticles(x, y) {
-            for(let i=0; i<5; i++) {
-                particles.push(new Particle(x, y));
-            }
-        }
-
-        // 爱心生成系统
+        // 爱心物理系统
         let pixelSize, heartShape;
         function initHeart() {
             pixelSize = canvas.width / 30;
             heartShape = [];
-            
             for(let y = -15; y <= 15; y++) {
                 for(let x = -15; x <= 15; x++) {
                     const equation = Math.pow(x/1.2, 2) + Math.pow(y, 2) - Math.pow(15/1.5, 2);
                     if(equation * equation * equation - Math.pow(x/1.2, 2) * Math.pow(y, 3) < 0) {
                         heartShape.push({
-                            x: (x + 15) * pixelSize,
-                            y: (15 - y) * pixelSize
+                            originX: (x + 15) * pixelSize,
+                            originY: (15 - y) * pixelSize,
+                            offsetX: 0,
+                            offsetY: 0,
+                            velocityX: 0,
+                            velocityY: 0,
+                            force: {
+                                x: (Math.random() - 0.5) * 0.06,
+                                y: (Math.random() - 0.5) * 0.06
+                            }
                         });
                     }
                 }
@@ -172,16 +148,15 @@
         }
         initHeart();
 
-        // 颜色生成器
+        // 颜色系统
         function getColor(progress) {
             const hue = 330 + progress * 15;
             return `hsl(${hue}, 85%, 60%)`;
         }
 
-        // 重绘爱心
+        // 绘制系统
         function redrawHeart() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
             ctx.save();
             ctx.translate(canvas.width/2, canvas.height/2);
             ctx.rotate(Math.PI);
@@ -189,31 +164,103 @@
 
             heartShape.forEach((pos, index) => {
                 ctx.fillStyle = getColor(index/heartShape.length);
-                ctx.fillRect(pos.x, pos.y, pixelSize - 1, pixelSize - 1);
+                ctx.fillRect(
+                    pos.originX + pos.offsetX, 
+                    pos.originY + pos.offsetY, 
+                    pixelSize - 1, 
+                    pixelSize - 1
+                );
                 
-                // 添加白色边框
-                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.strokeStyle = `rgba(255,255,255,${0.3 - Math.abs(pos.offsetX)/500})`;
                 ctx.lineWidth = 1;
-                ctx.strokeRect(pos.x, pos.y, pixelSize - 1, pixelSize - 1);
+                ctx.strokeRect(
+                    pos.originX + pos.offsetX, 
+                    pos.originY + pos.offsetY, 
+                    pixelSize - 1, 
+                    pixelSize - 1
+                );
             });
-
             ctx.restore();
         }
 
-        // 动画系统
-        let current = 0;
-        const duration = 5000;
-        function drawHeart() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // 绘制粒子
-            particles.forEach((particle, index) => {
-                particle.update();
-                particle.draw();
-                if(particle.radius < 0.1) particles.splice(index, 1);
+        // 物理驱动动画
+        function startPhysicsAnimation() {
+            function update() {
+                if (!isExploded) return;
+
+                heartShape.forEach(pos => {
+                    pos.velocityX += pos.force.x;
+                    pos.velocityY += pos.force.y;
+                    
+                    pos.velocityX *= 0.98;
+                    pos.velocityY *= 0.98;
+                    
+                    pos.offsetX += pos.velocityX;
+                    pos.offsetY += pos.velocityY;
+
+                    // 弹性边界
+                    const maxOffset = 120;
+                    if (Math.abs(pos.offsetX) > maxOffset) pos.velocityX *= -0.7;
+                    if (Math.abs(pos.offsetY) > maxOffset) pos.velocityY *= -0.7;
+                });
+
+                redrawHeart();
+                physicsAnimation = requestAnimationFrame(update);
+            }
+            cancelAnimationFrame(physicsAnimation);
+            update();
+        }
+
+        // 重组动画
+        function startRecombination() {
+            const startTime = Date.now();
+            const duration = 2500;
+
+            heartShape.forEach(pos => {
+                pos.startX = pos.offsetX;
+                pos.startY = pos.offsetY;
             });
 
-            // 绘制动态爱心
+            function animate() {
+                const progress = Math.min((Date.now() - startTime) / duration, 1);
+                const t = 1 - Math.pow(1 - progress, 3);
+
+                heartShape.forEach(pos => {
+                    pos.offsetX = pos.startX * (1 - t);
+                    pos.offsetY = pos.startY * (1 - t);
+                });
+
+                redrawHeart();
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    startPulse();
+                }
+            }
+            cancelAnimationFrame(physicsAnimation);
+            animate();
+        }
+
+        // 点击交互
+        function toggleHeart() {
+            isExploded = !isExploded;
+            
+            if (isExploded) {
+                heartShape.forEach(pos => {
+                    pos.velocityX = (Math.random() - 0.5) * 0.4;
+                    pos.velocityY = (Math.random() - 0.5) * 0.4;
+                });
+                startPhysicsAnimation();
+            } else {
+                startRecombination();
+            }
+        }
+
+        // 初始构建动画
+        let current = 0;
+        function buildHeart() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.save();
             ctx.translate(canvas.width/2, canvas.height/2);
             ctx.rotate(Math.PI);
@@ -221,40 +268,40 @@
 
             heartShape.slice(0, current).forEach((pos, index) => {
                 ctx.fillStyle = getColor(index/heartShape.length);
-                ctx.fillRect(pos.x, pos.y, pixelSize - 1, pixelSize - 1);
-                if(Math.random() < 0.1) createParticles(
-                    pos.x + pixelSize/2, 
-                    pos.y + pixelSize/2
-                );
+                ctx.fillRect(pos.originX, pos.originY, pixelSize - 1, pixelSize - 1);
             });
 
             ctx.restore();
 
             if(current < heartShape.length) {
-                current += Math.ceil(heartShape.length / (duration / 16));
-                requestAnimationFrame(drawHeart);
+                current += Math.ceil(heartShape.length / (5000 / 16));
+                requestAnimationFrame(buildHeart);
             } else {
-                animationComplete = true;
-                redrawHeart();
-                // 触发文字动画
+                startPulse();
                 document.querySelectorAll('.message, .signature').forEach(el => {
                     el.style.animationPlayState = 'running';
                 });
-                // 启动脉冲效果
-                setInterval(() => {
-                    const pulse = document.createElement('div');
-                    pulse.className = 'heart-pulse';
-                    pulse.style.width = canvas.width + 'px';
-                    pulse.style.height = canvas.height + 'px';
-                    pulse.style.left = (window.innerWidth/2 - canvas.width/2) + 'px';
-                    pulse.style.top = (canvas.offsetTop + window.scrollY) + 'px';
-                    document.body.appendChild(pulse);
-                    setTimeout(() => pulse.remove(), 2000);
-                }, 3000);
             }
         }
 
-        setTimeout(drawHeart, 500);
+        // 脉冲系统
+        function startPulse() {
+            clearInterval(pulseInterval);
+            pulseInterval = setInterval(() => {
+                const pulse = document.createElement('div');
+                pulse.className = 'heart-pulse';
+                pulse.style.width = canvas.width + 'px';
+                pulse.style.height = canvas.height + 'px';
+                pulse.style.left = (window.innerWidth/2 - canvas.width/2) + 'px';
+                pulse.style.top = (canvas.offsetTop + window.scrollY) + 'px';
+                document.body.appendChild(pulse);
+                setTimeout(() => pulse.remove(), 1000);
+            }, 1000);
+        }
+
+        // 初始化
+        canvas.addEventListener('click', toggleHeart);
+        setTimeout(buildHeart, 500);
     </script>
 </body>
 </html>
