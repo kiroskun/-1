@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Yan's Valentine</title>
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: url('https://images.unsplash.com/photo-1554080352-6b5be5e37bc3?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80');
+            background-size: cover;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #canvas {
+            margin-top: 20px;
+        }
+
+        .message {
+            font-family: 'Dancing Script', cursive;
+            font-size: 2.8em;
+            color: #ff69b4;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            opacity: 0;
+            margin-top: 20px;
+            position: relative;
+            z-index: 2;
+            animation: fadeInUp 2s ease-out 5s forwards;
+            text-align: center;
+            line-height: 1.2;
+        }
+
+        .message small {
+            font-size: 0.6em;
+            display: block;
+            margin-top: 10px;
+        }
+
+        .star {
+            position: absolute;
+            animation: twinkle 2s infinite;
+            opacity: 0;
+            font-size: 24px;
+            user-select: none;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes twinkle {
+            0% { opacity: 0; transform: scale(0); }
+            50% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0; transform: scale(0) rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="stars"></div>
+    <canvas id="canvas"></canvas>
+    <div class="message">
+        Yan, Happy Valentine's Day
+        <small>2025.2.14</small>
+    </div>
+
+    <script>
+        // 生成随机星星
+        function createStars() {
+            const starContainer = document.querySelector('.stars');
+            const starCount = 30;
+            const starIcons = ['★', '☆'];
+            
+            for (let i = 0; i < starCount; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.color = Math.random() > 0.5 ? '#FFD700' : '#C0C0C0';
+                star.style.left = `${Math.random() * 100}%`;
+                star.style.top = `${Math.random() * 100}%`;
+                star.style.animationDelay = `${Math.random() * 2}s`;
+                star.textContent = starIcons[Math.floor(Math.random() * 2)];
+                starContainer.appendChild(star);
+            }
+        }
+        createStars();
+
+        // 画布初始化
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let animationComplete = false;
+
+        // 自适应画布大小
+        function resizeCanvas() {
+            canvas.width = Math.min(window.innerWidth * 0.8, 600);
+            canvas.height = canvas.width * 0.9;
+            if(animationComplete) redrawHeart();
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // 爱心参数（标准心形方程）
+        let pixelSize, heartShape;
+        function initHeart() {
+            pixelSize = canvas.width / 60; // 更小的颗粒
+            heartShape = [];
+            
+            const scale = canvas.width / 120; // 比例系数
+            for (let x = -60; x <= 60; x++) {
+                for (let y = -60; y <= 60; y++) {
+                    // 标准心形方程
+                    const x1 = x / scale;
+                    const y1 = y / scale;
+                    if (Math.pow(x1*x1 + y1*y1 - 1, 3) - x1*x1 * y1*y1*y1 < 0) {
+                        heartShape.push({
+                            x: (x + 60) * pixelSize,
+                            y: (60 - y) * pixelSize
+                        });
+                    }
+                }
+            }
+        }
+        initHeart();
+
+        // 三色渐变生成器（紫→红→粉）
+        function getColor(progress) {
+            const colors = [
+                {r: 148, g: 0, b: 211},   // 紫色
+                {r: 255, g: 0, b: 0},     // 红色
+                {r: 255, g: 192, b: 203}   // 粉红
+            ];
+            
+            const segment = progress * 2;
+            const colorIndex = Math.floor(segment);
+            const ratio = segment - colorIndex;
+            
+            const c1 = colors[colorIndex] || colors[0];
+            const c2 = colors[colorIndex+1] || colors[colors.length-1];
+            
+            return `rgb(
+                ${Math.round(c1.r + (c2.r - c1.r) * ratio)},
+                ${Math.round(c1.g + (c2.g - c1.g) * ratio)},
+                ${Math.round(c1.b + (c2.b - c1.b) * ratio)}
+            )`;
+        }
+
+        // 重绘完整爱心
+        function redrawHeart() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            heartShape.forEach((pos, index) => {
+                ctx.fillStyle = getColor(index/heartShape.length);
+                ctx.fillRect(pos.x, pos.y, pixelSize, pixelSize);
+            });
+        }
+
+        // 动画构建爱心
+        let current = 0;
+        const duration = 5000;
+        function drawHeart() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            heartShape.slice(0, current).forEach((pos, index) => {
+                ctx.fillStyle = getColor(index/heartShape.length);
+                ctx.fillRect(pos.x, pos.y, pixelSize, pixelSize);
+            });
+
+            if (current < heartShape.length) {
+                current += Math.ceil(heartShape.length / (duration / 16));
+                requestAnimationFrame(drawHeart);
+            } else {
+                animationComplete = true;
+                redrawHeart();
+            }
+        }
+
+        // 开始动画
+        setTimeout(drawHeart, 500);
+    </script>
+</body>
+</html>
