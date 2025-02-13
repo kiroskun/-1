@@ -19,34 +19,28 @@
 
         #canvas {
             margin-top: 20px;
+            filter: drop-shadow(0 0 10px rgba(255, 65, 108, 0.3));
         }
 
         .message {
             font-family: 'Dancing Script', cursive;
-            font-size: 2.8em;
+            font-size: 3.2em;
             color: #ff69b4;
             text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
             opacity: 0;
-            margin-top: 20px;
+            margin-top: 30px;
             position: relative;
             z-index: 2;
             animation: fadeInUp 2s ease-out 5s forwards;
             text-align: center;
-            line-height: 1.2;
+            line-height: 1.3;
         }
 
         .message small {
-            font-size: 0.6em;
+            font-size: 0.5em;
             display: block;
-            margin-top: 10px;
-        }
-
-        .star {
-            position: absolute;
-            animation: twinkle 2s infinite;
-            opacity: 0;
-            font-size: 24px;
-            user-select: none;
+            margin-top: 8px;
+            letter-spacing: 1px;
         }
 
         @keyframes fadeInUp {
@@ -54,9 +48,17 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        .star {
+            position: absolute;
+            animation: twinkle 2s infinite;
+            opacity: 0;
+            font-size: 22px;
+            pointer-events: none;
+        }
+
         @keyframes twinkle {
-            0% { opacity: 0; transform: scale(0); }
-            50% { opacity: 1; transform: scale(1); }
+            0% { opacity: 0; transform: scale(0) rotate(0deg); }
+            50% { opacity: 1; transform: scale(1.2) rotate(180deg); }
             100% { opacity: 0; transform: scale(0) rotate(360deg); }
         }
     </style>
@@ -70,21 +72,20 @@
     </div>
 
     <script>
-        // 生成随机星星
+        // 生成动态星星
         function createStars() {
-            const starContainer = document.querySelector('.stars');
-            const starCount = 30;
-            const starIcons = ['★', '☆'];
-            
-            for (let i = 0; i < starCount; i++) {
+            const container = document.querySelector('.stars');
+            for (let i = 0; i < 40; i++) {
                 const star = document.createElement('div');
                 star.className = 'star';
-                star.style.color = Math.random() > 0.5 ? '#FFD700' : '#C0C0C0';
-                star.style.left = `${Math.random() * 100}%`;
-                star.style.top = `${Math.random() * 100}%`;
-                star.style.animationDelay = `${Math.random() * 2}s`;
-                star.textContent = starIcons[Math.floor(Math.random() * 2)];
-                starContainer.appendChild(star);
+                star.style.cssText = `
+                    left: ${Math.random() * 100}%;
+                    top: ${Math.random() * 100}%;
+                    color: ${Math.random() > 0.5 ? '#FFD700' : '#C0C0C0'};
+                    animation-delay: ${Math.random() * 2}s;
+                `;
+                star.innerHTML = Math.random() > 0.5 ? '✦' : '✧';
+                container.appendChild(star);
             }
         }
         createStars();
@@ -94,35 +95,34 @@
         const ctx = canvas.getContext('2d');
         let animationComplete = false;
 
-        // 自适应画布大小（修复尺寸计算）
+        // 响应式设置
         function resizeCanvas() {
-            const maxSize = Math.min(window.innerWidth, window.innerHeight) * 0.8;
-            canvas.width = maxSize;
-            canvas.height = maxSize * 0.9;
-            if(animationComplete) redrawHeart();
+            const size = Math.min(window.innerWidth, window.innerHeight) * 0.7;
+            canvas.width = size;
+            canvas.height = size * 0.95;
+            if(animationComplete) drawStaticHeart();
         }
-        resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
 
-        // 爱心参数（修正坐标计算）
-        let pixelSize, heartShape;
+        // 生成心形数据
+        let particles = [];
         function initHeart() {
-            pixelSize = canvas.width / 100; // 更小的颗粒
-            heartShape = [];
-            
+            particles = [];
+            const pixelSize = canvas.width / 150; // 超细颗粒
             const centerX = canvas.width/2;
-            const centerY = canvas.height/2;
-            const scale = canvas.width / 200; // 调整缩放比例
+            const centerY = canvas.height/2 + canvas.height*0.05;
 
-            for (let x = -100; x <= 100; x++) {
-                for (let y = -100; y <= 100; y++) {
-                    // 标准心形方程
-                    const x1 = x * scale;
-                    const y1 = y * scale;
-                    if (Math.pow(x1*x1 + y1*y1 - 1, 3) - x1*x1 * Math.pow(y1, 3) < 0) {
-                        heartShape.push({
+            for(let x = -100; x <= 100; x++){
+                for(let y = -100; y <= 100; y++){
+                    // 优化心形方程
+                    const xx = x * 0.04;
+                    const yy = y * 0.04 - 0.5;
+                    if(Math.pow(xx*xx + yy*yy - 1, 3) - xx*xx * yy*yy*yy < 0) {
+                        particles.push({
                             x: centerX + x * pixelSize,
-                            y: centerY - y * pixelSize // 修正Y轴方向
+                            y: centerY + y * pixelSize,
+                            size: pixelSize * (0.9 + Math.random()*0.2)
                         });
                     }
                 }
@@ -130,65 +130,65 @@
         }
         initHeart();
 
-        // 三色渐变生成器（优化插值算法）
+        // 三色渐变函数
         function getColor(progress) {
             const colors = [
-                {r: 148, g: 0, b: 211},   // 紫色
-                {r: 255, g: 0, b: 0},     // 红色
-                {r: 255, g: 192, b: 203}   // 粉红
+                [148, 0, 211],   // 紫色
+                [255, 0, 0],     // 红色
+                [255, 192, 203]   // 粉红
             ];
             
-            const segment = progress * (colors.length - 1);
-            const index = Math.min(Math.floor(segment), colors.length - 2);
-            const ratio = segment - index;
-            
-            const c1 = colors[index];
-            const c2 = colors[index + 1];
+            const phase = progress * 2;
+            const index = Math.min(Math.floor(phase), colors.length - 2);
+            const ratio = phase - index;
             
             return `rgb(
-                ${Math.round(c1.r + (c2.r - c1.r) * ratio)},
-                ${Math.round(c1.g + (c2.g - c1.g) * ratio)},
-                ${Math.round(c1.b + (c2.b - c1.b) * ratio)}
+                ${colors[index][0] + (colors[index+1][0] - colors[index][0]) * ratio},
+                ${colors[index][1] + (colors[index+1][1] - colors[index][1]) * ratio},
+                ${colors[index][2] + (colors[index+1][2] - colors[index][2]) * ratio}
             )`;
         }
 
-        // 重绘完整爱心（添加抗锯齿）
-        function redrawHeart() {
+        // 绘制静态爱心
+        function drawStaticHeart() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            heartShape.forEach((pos, index) => {
-                ctx.fillStyle = getColor(index/heartShape.length);
+            particles.forEach((p, i) => {
+                ctx.fillStyle = getColor(i/particles.length);
                 ctx.beginPath();
-                ctx.roundRect(pos.x, pos.y, pixelSize, pixelSize, 2);
+                ctx.roundRect(p.x, p.y, p.size, p.size, 2);
                 ctx.fill();
             });
         }
 
-        // 动画构建爱心（优化绘制性能）
-        let current = 0;
-        const duration = 5000;
-        function drawHeart(timestamp) {
+        // 动态构建爱心
+        let startTime = null;
+        function animateHeart(timestamp) {
             if (!startTime) startTime = timestamp;
-            const progress = Math.min((timestamp - startTime) / duration, 1);
+            const progress = Math.min((timestamp - startTime) / 5000, 1);
             
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             
-            const renderCount = Math.floor(heartShape.length * progress);
-            heartShape.slice(0, renderCount).forEach((pos, index) => {
-                ctx.fillStyle = getColor(index/heartShape.length);
-                ctx.fillRect(pos.x, pos.y, pixelSize, pixelSize);
+            const count = Math.floor(progress * particles.length);
+            particles.slice(0, count).forEach((p, i) => {
+                ctx.fillStyle = getColor(i/particles.length);
+                ctx.beginPath();
+                ctx.roundRect(p.x, p.y, p.size, p.size, 2);
+                ctx.fill();
             });
 
             if (progress < 1) {
-                requestAnimationFrame(drawHeart);
+                requestAnimationFrame(animateHeart);
             } else {
                 animationComplete = true;
-                redrawHeart();
+                drawStaticHeart();
             }
         }
-        let startTime = null;
 
-        // 开始动画
-        setTimeout(() => requestAnimationFrame(drawHeart), 500);
+        // 启动动画
+        setTimeout(() => {
+            initHeart();
+            requestAnimationFrame(animateHeart);
+        }, 500);
     </script>
 </body>
 </html>
